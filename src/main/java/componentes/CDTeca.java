@@ -1,150 +1,172 @@
 package componentes;
 
-import java.util.Scanner;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.File;
-import java.io.FileNotFoundException;
-
-
+import java.util.ArrayList;
+import java.util.Scanner;
 
 public class CDTeca {
-    final static int MAX_CDS = 500;
-    private CD[] meus_cd = null;
-    private int numero_de_cd = 0;
+    static CD[] meus_cd = new CD[100];
+    static int numero_de_cds = contarCDsNoFicheiro(false);
 
-    public CDTeca(String nome_do_ficheiro) throws IOException {
-        assert nome_do_ficheiro != null;
-        Scanner f;
-        try {
-            f = new Scanner(new File(nome_do_ficheiro));
-        } catch (FileNotFoundException e) {
-            return;
-        }
 
-        if (meus_cd == null){
-            meus_cd = new CD[MAX_CDS];
-        }
+    public static void executar(int opcao) {
+        Scanner dados= new Scanner(System.in);
+        String titulo = "";
+        String artista = "";
+        int duracao = 0;
+        int indice;
 
-        if (f.hasNextInt()) {
-            int n = f.nextInt(); //número de CD guardados
-            numero_de_cd = n;
-            f.nextLine();
-            for (int i = 0; i < numero_de_cd; i++) {
-                CD lido = new CD(f);
-                meus_cd[i] = lido;
-            }
-        }
-        f.close();
-    }
-
-    public void grava(String nome_do_ficheiro) {
-        FileWriter f;
-        try {
-            f = new FileWriter(nome_do_ficheiro);
-
-            // Escreve o total de CDs
-            f.write(numero_de_cd+ "\n");
-
-            for (int i=0; i<numero_de_cd; i++)
-                meus_cd[i].escrever(f);
-        } catch (IOException e) {
-            System.out.println("Erro de escrita:" + e.getMessage());
-            return;
-        }
-    }
-
-    /* Ciclo principal de execução do programa */
-    public void executar() {
-        //As opções estão numeradas de 1 a 5 (ver classe Menu)
-        String[] opcoes = {"Inserir", "Remover", "Mostrar", "Listar", "Listar Todos", "Sair"};
-        Menu menu = new Menu(opcoes);
-        final int SAIR = opcoes.length;
-        int opcao = 0;
-        do {
-            //TODO: Clear console
-            System.out.println("CDs na CDTeca " + numero_de_cd);
-            Menu.mostrar();
-            opcao = Menu.escolhaOpcao();
-            if (opcao > 0 && opcao < SAIR)
-                executar(opcao);
-        } while (opcao != SAIR);
-    }
-
-    public void executar(int opcao) {
         switch(opcao) {
-            case 1: {
-                CD c = CD.leDoTeclado();
-                int index = this.indiceDoCd(c.getTitulo());
+            case 1:  //inserir CD
 
-                if (index == 1) {
-                    c.mostra();
-                    meus_cd[numero_de_cd] = c;
-                    numero_de_cd++;
+                System.out.println("Informe os dados do CD:");
+                System.out.println("Insira o título: ");
+                titulo = dados.nextLine().trim();
+                System.out.println("Insira o nome do artista: ");
+                artista = dados.nextLine().trim();
+                System.out.println("Insira a duracao do album em segundos: ");
+                duracao = dados.nextInt();
+                indice = numero_de_cds;
+                CD cdTeclado = new CD(indice, titulo, artista, duracao);
+                System.out.println("\nCD criado a partir do teclado: " + cdTeclado);
+                cdTeclado.mostra(); //mostra o que foi inserido
+
+                // Salvar o CD introduzido pelo teclado no arquivo
+                try {
+                    // Abrimos em modo append (true) para não sobrescrever os CDs anteriores
+                    FileWriter fw = new FileWriter("teste_cd.txt", true);
+                    cdTeclado.escrever(fw);
+                    fw.close();
+                    System.out.println("CD do teclado salvo com sucesso no arquivo 'teste_cd.txt'");
+                } catch (IOException e) {
+                    System.out.println("Erro ao salvar CD do teclado: " + e.getMessage());
                 }
-                break;
-            }
+                meus_cd[numero_de_cds] = cdTeclado;
+                numero_de_cds++;
 
-            case 2: {
-                Scanner dados= new Scanner(System.in);
+                break;
+
+            case 2:  //remover CD
                 System.out.println("Qual o título do CD a remover?");
-                String tt=dados.nextLine();
-                int index=this.indiceDoCd(tt);
-                if (index !=1){
-                    numero_de_cd--;
+                String tituloProcurado = dados.nextLine().trim();
 
-                    for (int i=index; i<numero_de_cd;i++)
-                        meus_cd[i]=meus_cd[i+1];
-                }
+                procurado(tituloProcurado, opcao);
                 break;
-            }
-            case 3: {
-                this.listar();
-                break;
-            }
 
-            case 4: {
-                Scanner dados = new Scanner(System.in);
-                System.out.println("Qual o título do CD a listar?");
-                String tt = dados.nextLine();
-                int index = this.indiceDoCd(tt);
-                if (index != 1)
-                    meus_cd[index].mostra();
-                break;
-            }
-
-            case 5: {
+            case 3:  //Listar todos os cds do ficheiro
+                contarCDsNoFicheiro(true);
+                System.out.println("\n=====================\n");
                 for (CD CDs: meus_cd){
-                    if (CDs != null)
+                    if (CDs != null) {
                         CDs.mostra();
+                    }
                 }
                 break;
+
+            case 4:  // listar todos os cds do mesmo autor
+                System.out.println("Qual o nome do autor?");
+                String nomeAutor = dados.nextLine().trim();
+                procurado(nomeAutor, opcao);
+                break;
+
+            case 5:  //Limpar todos os cds do ficheiro
+                limparFicheiro();
+                break;
+
+        }
+    }
+
+    public static void procurado(String Procurado, int opcao){
+        ArrayList<CD> cds = new ArrayList<>();
+        boolean removido = false;
+        try (Scanner sc = new Scanner(new File("teste_cd.txt"))) {
+            while (sc.hasNextLine()) {
+
+
+                // Lê a linha do índice e converte para inteiro
+                String lineIndice = sc.nextLine().trim();
+                int indice = Integer.parseInt(lineIndice);
+
+                // Lê as próximas 3 linhas (título, artista e duração)
+                String titulo = sc.hasNextLine() ? sc.nextLine().trim() : "";
+                String artista = sc.hasNextLine() ? sc.nextLine().trim() : "";
+                String duracao = sc.hasNextLine() ? sc.nextLine() : "";
+                int duracaoInt = Integer.parseInt(duracao);
+
+                if (!removido && titulo.equalsIgnoreCase(Procurado) && opcao == 2) {
+                    System.out.println("Apagando CD com indice: " + indice);
+                    removido = true;
+                } else {
+                    cds.add(new CD(indice, titulo, artista, duracaoInt));
+
+                }
+                if (artista.equalsIgnoreCase(Procurado) && opcao == 4) {
+                    System.out.println("Indice: " + indice);
+                    System.out.println("titulo: " + titulo);
+                    System.out.println("Artista: " + artista);
+                    System.out.println("duracao: " + duracao);
+                }
+
             }
+        } catch (IOException e) {
+            System.out.println("Erro ao ler o ficheiro: " + e.getMessage());
+        }
 
-            default: return;
-
+        if (opcao == 2) {
+            // Regrava o ficheiro com os registros restantes
+            try (FileWriter fw = new FileWriter("teste_cd.txt", false)) {
+                int novoIndice = 1;
+                for (CD cd : cds) {
+                    fw.write(novoIndice++ + "\n");
+                    fw.write(cd.getTitulo() + "\n");
+                    fw.write(cd.getArtista() + "\n");
+                    fw.write(cd.getDuracao() + "\n");
+                }
+            } catch (IOException e) {
+                System.out.println("Erro ao atualizar o ficheiro: " + e.getMessage());
+            }
         }
     }
 
-    public void listar () {
-        for(int i=0;i<numero_de_cd;i++)
-            meus_cd[i].mostra();
-    }
-
-    public int indiceDoCd(String titulo) {
-        for (int i=0; i<numero_de_cd;i++)
-            if (meus_cd[i].getTitulo().compareTo(titulo)==0)
-                return i;
-        return 1;
-    }
-
-    public CD procurar(String titulo) {
-        int i = indiceDoCd(titulo);
-        if (i != -1) {
-            assert i >= 0 && meus_cd != null &&
-                    i < numero_de_cd && meus_cd[i] != null;
-            return meus_cd[i];
+    public static void limparFicheiro() {
+        File ficheiro = new File("teste_cd.txt");
+        try (FileWriter fw = new FileWriter(ficheiro, false)) {
+            // Escreve uma string vazia para limpar o ficheiro
+            fw.write("");
+            System.out.println("Ficheiro limpo com sucesso!");
+        } catch (IOException e) {
+            System.out.println("Erro ao atualizar ficheiro: " + e.getMessage());
         }
-        return null;
     }
+
+
+    public static int contarCDsNoFicheiro(boolean imprimir) {
+        int contador = 0;
+        File ficheiro = new File("teste_cd.txt");
+        try (Scanner sc = new Scanner(ficheiro)) {
+            while (sc.hasNextLine()) {
+
+                // Lê a linha do índice e converte para inteiro
+                String lineIndice = sc.nextLine().trim();
+                int indice = Integer.parseInt(lineIndice);
+
+                // Lê as próximas 3 linhas (título, artista e duração)
+                String titulo = sc.hasNextLine() ? sc.nextLine().trim() : "";
+                String artista = sc.hasNextLine() ? sc.nextLine().trim() : "";
+                String duracao = sc.hasNextLine() ? sc.nextLine().trim() : "";
+
+                if(imprimir)
+
+                    System.out.println(indice + ": " + titulo + " - " + artista + " (" + duracao + ")");
+
+                contador++;
+            }
+        } catch (IOException e) {
+            System.out.println("Erro ao ler o ficheiro: " + e.getMessage());
+        }
+        return contador;
+    }
+
 }
